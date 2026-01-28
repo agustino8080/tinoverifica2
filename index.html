@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>M3U/M3U8 Verifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f2f2f2;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+            font-size: 14px;
+        }
+        
+        .list-item {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .list-item h3 {
+            margin-top: 0;
+        }
+        
+        .list-item p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>M3U/M3U8 Verifier</h1>
+    
+    <div class="form-group">
+        <label for="m3u-links">M3U/M3U8 Links:</label>
+        <textarea id="m3u-links" placeholder="Enter one or more M3U/M3U8 links, separated by a new line"></textarea>
+    </div>
+    
+    <button onclick="verifyM3ULinks()">Verify</button>
+    
+    <div class="form-group">
+        <label for="file-upload">Subir Archivo (M3U/M3U8):</label>
+        <input type="file" id="file-upload" accept=".m3u,.m3u8" />
+    </div>
+
+    <div class="form-group">
+        <label for="url-input">Ingresar URL:</label>
+        <input type="text" id="url-input" placeholder="Ingrese una URL M3U/M3U8" />
+        <button onclick="verifyURL()">Verificar URL</button>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        function verifyM3ULinks() {
+            var m3uLinks = document.getElementById("m3u-links").value.trim().split("\n");
+            var resultDiv = document.getElementById("result");
+            resultDiv.innerHTML = "";
+            
+            m3uLinks.forEach(link => {
+                verifyM3ULink(link.trim())
+                    .then(result => {
+                        displayM3ULinkResult(result);
+                    })
+                    .catch(error => {
+                        displayM3ULinkResult({
+                            link: link,
+                            status: "Error",
+                            message: error.message
+                        });
+                    });
+            });
+        }
+        
+        function verifyM3ULink(link) {
+            return fetch(link)
+                .then(response => {
+                    if (response.ok) {
+                        return response.text();
+                    } else {
+                        throw new Error("M3U/M3U8 link is invalid.");
+                    }
+                })
+                .then(data => {
+                    var lines = data.split("\n");
+                    var info = {
+                        link: link,
+                        status: "Online",
+                        name: "",
+                        resolution: "",
+                        codec: "",
+                        connections: "",
+                        expirationDate: ""
+                    };
+                    
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i].trim();
+                        if (line.startsWith("#EXTINF:")) {
+                            var attributes = line.substring(8).split(",");
+                            info.name = attributes[1].trim();
+                            var resolutionCodec = attributes[0].trim().split(" ");
+                            info.resolution = resolutionCodec[0];
+                            info.codec = resolutionCodec[1];
+                        } else if (line.startsWith("#EXT-X-STREAM-INF:")) {
+                            var streamAttributes = line.substring(18).split(",");
+                            for (var j = 0; j < streamAttributes.length; j++) {
+                                var attribute = streamAttributes[j].trim();
+                                if (attribute.startsWith("BANDWIDTH=")) {
+                                    info.connections = attribute.substring(10);
+                                } else if (attribute.startsWith("CODECS=")) {
+                                    info.codec = attribute.substring(7);
+                                }
+                            }
+                        } else if (line.startsWith("#EXT-X-ENDLIST")) {
+                            info.expirationDate = "Permanent";
+                        }
+                    }
+                    
+                    return info;
+                });
+        }
+        
+        function displayM3ULinkResult(result) {
+            var listItem = document.createElement("div");
+            listItem.classList.add("list-item");
+            
+            var header = document.createElement("h3");
+            header.textContent = result.link;
+            listItem.appendChild(header);
+            
+            var statusElement = document.createElement("p");
+            statusElement.textContent = `Status: ${result.status}`;
+            listItem.appendChild(statusElement);
+            
+            var nameElement = document.createElement("p");
+            nameElement.textContent = `Name: ${result.name}`;
+            listItem.appendChild(nameElement);
+            
+            var resolutionElement = document.createElement("p");
+            resolutionElement.textContent = `Resolution: ${result.resolution}`;
+            listItem.appendChild(resolutionElement);
+            
+            var codecElement = document.createElement("p");
+            codecElement.textContent = `Codec: ${result.codec}`;
+            listItem.appendChild(codecElement);
+            
+            var connectionsElement = document.createElement("p");
+            connectionsElement.textContent = `Connections: ${result.connections}`;
+            listItem.appendChild(connectionsElement);
+            
+            var expirationElement = document.createElement("p");
+            expirationElement.textContent = `Expiration Date: ${result.expirationDate}`;
+            listItem.appendChild(expirationElement);
+            
+            var downloadLink = document.createElement("a");
+            downloadLink.href = result.link;
+            downloadLink.textContent = "Download";
+            downloadLink.download = "";
+            listItem.appendChild(downloadLink);
+            
+            document.getElementById("result").appendChild(listItem);
+        }
+
+        // Lógica para manejar la carga del archivo
+        document.getElementById('file-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    processFileContent(content);
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Procesar el contenido del archivo
+        function processFileContent(content) {
+            const links = content.split('\n');
+            links.forEach(link => {
+                if (link.trim()) {
+                    verifyM3ULink(link.trim())
+                        .then(result => {
+                            displayM3ULinkResult(result);
+                        })
+                        .catch(error => {
+                            displayM3ULinkResult({
+                                link: link,
+                                status: "Error",
+                                message: error.message
+                            });
+                        });
+                }
+            });
+        }
+
+        // Lógica para verificar la URL ingresada
+        function verifyURL() {
+            const url = document.getElementById('url-input').value.trim();
+            if (url) {
+                verifyM3ULink(url)
+                    .then(result => {
+                        displayM3ULinkResult(result);
+                    })
+                    .catch(error => {
+                        displayM3ULinkResult({
+                            link: url,
+                            status: "Error",
+                            message: error.message
+                        });
+                    });
+            } else {
+                alert("Por favor, ingrese una URL válida.");
+            }
+        }
+    </script>
+</div>
+</body>
+</html>
