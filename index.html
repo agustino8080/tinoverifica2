@@ -129,12 +129,20 @@
         }
         
         function verifyM3ULink(link) {
+            // Comprobar si el enlace tiene la extensión correcta
+            const validExtensions = ['.m3u', '.m3u8', '.mp4', '.mkv', '.mov'];
+            const isValidLink = validExtensions.some(ext => link.endsWith(ext));
+
+            if (!isValidLink) {
+                return Promise.reject(new Error("El enlace debe ser un archivo M3U, M3U8, MP4, MKV o MOV."));
+            }
+
             return fetch(link)
                 .then(response => {
                     if (response.ok) {
                         return response.text();
                     } else {
-                        throw new Error("M3U/M3U8 link is invalid.");
+                        throw new Error("El enlace es inválido.");
                     }
                 })
                 .then(data => {
@@ -148,7 +156,7 @@
                         connections: "",
                         expirationDate: ""
                     };
-                    
+
                     for (var i = 0; i < lines.length; i++) {
                         var line = lines[i].trim();
                         if (line.startsWith("#EXTINF:")) {
@@ -171,7 +179,7 @@
                             info.expirationDate = "Permanent";
                         }
                     }
-                    
+
                     return info;
                 });
         }
